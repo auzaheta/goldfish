@@ -110,6 +110,7 @@ jobs:
         run: |
           pkgbuild::clean_dll()
           binary <- pkgbuild::build(binary = TRUE, vignettes = FALSE, needs_compilation = TRUE, compile_attributes = TRUE)
+          print(binary)
         shell: Rscript {0}
         
       - name: Load Release URL File from release job
@@ -129,7 +130,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-          asset_path: ./${{ matrix.config.artifact_name }}
+          asset_path: ./
           asset_name: ${{ matrix.config.asset_name }}
           asset_content_type: application/zip
         
