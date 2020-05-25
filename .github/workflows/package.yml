@@ -9,7 +9,42 @@ on:
 name: Package-Release
 
 jobs:
-  mac:
+  createrelease:
+    name: createrelease
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout one
+        uses: actions/checkout@master
+        with:
+          fetch-depth: '0'
+      - name: Bump version and push tag
+        id: newtag
+        uses: anothrNick/github-tag-action@1.17.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
+      - name: Checkout two
+        uses: actions/checkout@v2
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.newtag.outputs.tag }}
+          release_name: Release ${{ steps.newtag.outputs.tag }}
+          draft: false
+          prerelease: false
+      - name: Output Release URL File
+        run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
+      - name: Save Release URL File for publish
+        uses: actions/upload-artifact@v1
+        with:
+          name: release_url
+          path: release_url.txt
+
+  build:
     name: Build for ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
     strategy:
@@ -18,6 +53,7 @@ jobs:
         config:
           - {os: macOS-latest,   r: 'release', artifact_name: '*.tar.gz', asset_name: macOS}
           - {os: windows-latest, r: 'release', artifact_name: '*.zip', asset_name: winOS}
+          - {os: ubuntu-18.04,   r: 'release', rspm: "https://packagemanager.rstudio.com/cran/__linux__/xenial/latest", artifact_name: '*.tar.gz', asset_name: linuxOS}
 
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
@@ -29,7 +65,8 @@ jobs:
         
       - uses: r-lib/actions/setup-r@master
         with:
-          r-version: ${{ matrix.config.r }}  
+          r-version: ${{ matrix.config.r }}
+      - uses: r-lib/actions/setup-pandoc@master
         
       - name: Query dependencies
         run: |
@@ -74,33 +111,22 @@ jobs:
           binary <- pkgbuild::build(binary = TRUE, vignettes = FALSE, needs_compilation = TRUE, compile_attributes = TRUE)
         shell: Rscript {0}
         
-      - name: Bump version and push tag
-        id: newtag
-        uses: anothrNick/github-tag-action@1.17.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WITH_V: true
-          DEFAULT_BUMP: patch
-      - name: Checkout two
-        uses: actions/checkout@v2
-        
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Load Release URL File from release job
+        uses: actions/download-artifact@v1
         with:
-          tag_name: ${{ steps.newtag.outputs.tag }}
-          release_name: Release ${{ steps.newtag.outputs.tag }}
-          draft: false
-          prerelease: false
+          name: release_url    
+      - name: Get Release File Name & Upload URL
+        id: get_release_info
+        run: |
+          value=`cat release_url/release_url.txt`
+          echo ::set-output name=upload_url::$value
           
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v1-release
         with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ${{ matrix.config.artifact_name }}
           asset_name: ${{ matrix.config.asset_name }}
-          tag: ${{ github.ref }}
           asset_content_type: application/zip
         
