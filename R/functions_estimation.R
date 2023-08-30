@@ -328,7 +328,8 @@ estimate.formula <- function(
         "maxIterations", "maxScoreStopCriterion", "initialDamping",
         "dampingIncreaseFactor", "dampingDecreaseFactor", "initialParameters",
         "fixedParameters", "returnEventProbabilities", "returnIntervalLogL",
-        "impute", "engine", "startTime", "endTime", "opportunitiesList"
+        "impute", "engine", "startTime", "endTime", "opportunitiesList",
+        "dbFile", "positions"
       )
 
 
@@ -694,8 +695,8 @@ estimate.formula <- function(
     cbind(rownames(effectDescription), effectDescription),
     1,
     \(x) paste(x[x != ""], collapse = "_")
-  ) |> str_replace(fixed("usersNode$"), "") |>
-    str_replace(fixed("actors$"), "")
+  ) |> stringr::str_replace(stringr::fixed("usersNode$"), "") |>
+    stringr::str_replace(stringr::fixed("actors$"), "")
   ## 3.2 PREPROCESS when preprocessingInit == NULL
   if (is.null(preprocessingInit)) {
     if (progress) cat("Starting preprocessing.\n")
@@ -733,6 +734,8 @@ estimate.formula <- function(
         startTime = estimationInit[["startTime"]],
         endTime = estimationInit[["endTime"]],
         namesEffects = namesEffects,
+        dbFile = estimationInit[["dbFile"]],
+        positions = estimationInit[["positions"]],
         rightCensored = rightCensored,
         progress = progress,
         prepEnvir = PreprocessEnvir

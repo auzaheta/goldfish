@@ -40,6 +40,8 @@ preprocess <- function(
     startTime = min(vapply(events, function(x) min(x$time), double(1))),
     endTime = max(vapply(events, function(x) max(x$time), double(1))),
     namesEffects = sprintf('Eff%d', seq_along(effects)),
+    dbFile = NULL,
+    positions = numeric(5),
     rightCensored = FALSE,
     progress = FALSE,
     prepEnvir = new.env()) {
@@ -173,6 +175,13 @@ preprocess <- function(
     as.integer(sum(timeE >= startTime & timeE <= endTime)),
     as.integer(length(timeE))
   )
+  
+  nTotalEvents <- (if (hasStartTime || hasEndTime) {
+    vapply(events, \(x) sum(x$time <= endTime), numeric(1))
+  } else {
+    vapply(events, nrow, numeric(1))
+  }) |> sum()
+  
   # CHANGED ALVARO: preallocate objects sizes
   # dependentStatistics <- vector("list", nDependentEvents)
   # timeIntervals <- vector("numeric", ifelse(rightCensored, nDependentEvents, 0))
@@ -212,13 +221,23 @@ preprocess <- function(
   iDependentEvents <- 0L
   iTotalEvents <- 0L
   rowNumberO <- seq_len(n1)
+  
+  # create conn to db
+  db <- DBI::dbConnect(RSQLite::SQLite(), ifelse(is.null(dbFile), "", dbFile))
+
+  posI <- positions["posI"]
+  posT <- positions["posT"]
+  posC <- positions["posC"]
+  posS <- positions["posS"]
+  posL <- positions["posL"]
+
   if (progress) {
-    cat("Preprocessing events.\n", startTime, endTime, nDependentEvents)
+    cat("Preprocessing events.\n", startTime, endTime, nTotalEvents)
     # # how often print, max 50 prints
-    pb <- utils::txtProgressBar(max = nDependentEvents, char = "*", style = 3)
+    pb <- utils::txtProgressBar(max = nTotalEvents, char = "*", style = 3)
     dotEvents <- ifelse(
-      nDependentEvents > 50,
-      ceiling(nDependentEvents / 50),
+      nTotalEvents > 50,
+      ceiling(nTotalEvents / 50),
       1
     )
   }
@@ -265,7 +284,7 @@ preprocess <- function(
       utils::setTxtProgressBar(pb, iTotalEvents)
     }
 
-    if (progress && iTotalEvents == nDependentEvents) {
+    if (progress && iTotalEvents == nTotalEvents) {
       utils::setTxtProgressBar(pb, iTotalEvents)
       close(pb)
     }
@@ -299,28 +318,33 @@ preprocess <- function(
           
           sampleKeep <- tapply(
             rowNumber[!choose], 
-            strataSmpl[!choose],
+            strataSmpl[!choose, drop = TRUE],
             sample, size = 1
           ) |> c("event" = which(choose))
           
           sampleN <- tapply(
             rowNumber[!choose], 
-            strataSmpl[!choose],
+            strataSmpl[!choose, drop = TRUE],
             length
           ) |> c("event" = 1)
           
-          row = seq_along(sampleN)
-          timeK = rep(as_datetime(event$time, tz = "UTC"), length(row))
+          # row = seq_along(sampleN)
+          
           # eventC <- rep(iDependentEvents, length(row))
           
           keep <- data.frame(
+            timeK = event$time,
             statsSender[sampleKeep, ],
             sampleN = sampleN,
             choose = choose[sampleKeep] * 1L,
             eventC = iDependentEvents
           )
           
-          A[timeK, row] <- keep
+          if (iDependentEvents == 1) {
+            RSQLite::dbWriteTable(db, "preprocess", keep, overwrite = TRUE)
+          } else {
+            RSQLite::dbWriteTable(db, "preprocess", keep, append = TRUE)
+          }
           
         # }
         
@@ -585,9 +609,11 @@ preprocess <- function(
       times <= endTime
   }
 
-  if (progress && utils::getTxtProgressBar(pb) < nDependentEvents) {
+  if (progress && utils::getTxtProgressBar(pb) < nTotalEvents) {
     close(pb)
   }
+
+  # DBI::dbDisconnect(db)
 
   return(structure(
     list(
