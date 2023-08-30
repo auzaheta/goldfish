@@ -455,7 +455,7 @@ estimate.formula <- function(
   }
 
 
-  ## 2.1 INITIALIZE OBJECTS for all cases: preprocessingInit or not
+  ### 2.1 INITIALIZE OBJECTS for all cases: preprocessingInit or not ----
   # enviroment from which get the objects
 
   effects <- createEffectsFunctions(rhsNames, model, subModel,
@@ -677,6 +677,25 @@ estimate.formula <- function(
     prep$nodes2 <- .nodes2
   }
 
+  ### 4. PREPARE PRINTING----
+  # functions_utility.R
+  effectDescription <-
+    GetDetailPrint(
+      objectsEffectsLink, parsedformula,
+      estimationInit[["fixedParameters"]]
+    )
+  hasWindows <- attr(effectDescription, "hasWindows")
+  if (is.null(hasWindows)) {
+    hasWindows <- !all(vapply(windowParameters, is.null, logical(1)))
+  }
+  attr(effectDescription, "hasWindows") <- NULL
+  
+  namesEffects <- apply(
+    cbind(rownames(effectDescription), effectDescription),
+    1,
+    \(x) paste(x[x != ""], collapse = "_")
+  ) |> str_replace(fixed("usersNode$"), "") |>
+    str_replace(fixed("actors$"), "")
   ## 3.2 PREPROCESS when preprocessingInit == NULL
   if (is.null(preprocessingInit)) {
     if (progress) cat("Starting preprocessing.\n")
@@ -713,6 +732,7 @@ estimate.formula <- function(
         isTwoMode = isTwoMode,
         startTime = estimationInit[["startTime"]],
         endTime = estimationInit[["endTime"]],
+        namesEffects = namesEffects,
         rightCensored = rightCensored,
         progress = progress,
         prepEnvir = PreprocessEnvir
@@ -733,19 +753,6 @@ estimate.formula <- function(
     return(prep)
   }
 
-
-  ### 4. PREPARE PRINTING----
-  # functions_utility.R
-  effectDescription <-
-    GetDetailPrint(
-      objectsEffectsLink, parsedformula,
-      estimationInit[["fixedParameters"]]
-    )
-  hasWindows <- attr(effectDescription, "hasWindows")
-  if (is.null(hasWindows)) {
-    hasWindows <- !all(vapply(windowParameters, is.null, logical(1)))
-  }
-  attr(effectDescription, "hasWindows") <- NULL
   ### 5. ESTIMATE----
   # CHANGED Alvaro: to match model and subModel new parameters
   if (model == "REM") {

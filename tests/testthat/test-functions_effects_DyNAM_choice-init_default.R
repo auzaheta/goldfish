@@ -98,3 +98,23 @@ test_that("DyNAM default and tertius-diff init return the same result", {
     label = "cache is equal"
   )
 })
+
+test_that("DyNAM default and alter init return the same result", {
+  expect_equal(
+    init_DyNAM_choice.alter(effectFUN_REM_ego, testAttr$fishingComplete, 8, 8),
+    init_DyNAM_choice.default(
+      effectFUN_REM_ego,
+      network = NULL, attribute = testAttr$fishingComplete,
+      window = NULL, n1 = 8, n2 = 8
+    )
+  )
+  expect_equal(
+    init_REM_choice.ego(effectFUN_REM_ego, testAttr$fishingComplete, 8, 8),
+    init_DyNAM_choice.default(
+      effectFUN_REM_ego,
+      network = NULL, attribute = testAttr$fishingComplete,
+      window = 1, n1 = 8, n2 = 8
+    ),
+    label = "when window is not NULL"
+  )
+})

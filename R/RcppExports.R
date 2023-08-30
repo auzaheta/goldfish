@@ -325,3 +325,11 @@ gather_sender_receiver_model <- function(dep_event_mat, is_dependent, stat_mat_i
     .Call('_goldfish_gather_sender_receiver_model', PACKAGE = 'goldfish', dep_event_mat, is_dependent, stat_mat_init, stat_mat_update, stat_mat_update_pointer, stat_mat_rightcensored_update, stat_mat_rightcensored_update_pointer, presence1_init, presence1_update, presence1_update_pointer, presence2_init, presence2_update, presence2_update_pointer, n_actors_1, n_actors_2, twomode_or_reflexive, verbose, impute)
 }
 
+MapMatMult <- function(A, B, nCores) {
+    .Call('_goldfish_MapMatMult', PACKAGE = 'goldfish', A, B, nCores)
+}
+
+MapMatMultI <- function(A, B, nCores) {
+    .Call('_goldfish_MapMatMultI', PACKAGE = 'goldfish', A, B, nCores)
+}
+

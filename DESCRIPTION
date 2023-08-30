@@ -43,7 +43,8 @@ Imports:
     tibble
 LinkingTo:
     Rcpp,
-    RcppArmadillo
+    RcppArmadillo,
+    RcppEigen
 Suggests: 
     testthat,
     knitr,

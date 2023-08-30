@@ -39,6 +39,7 @@ preprocess <- function(
     # add more parameters
     startTime = min(vapply(events, function(x) min(x$time), double(1))),
     endTime = max(vapply(events, function(x) max(x$time), double(1))),
+    namesEffects = sprintf('Eff%d', seq_along(effects)),
     rightCensored = FALSE,
     progress = FALSE,
     prepEnvir = new.env()) {
@@ -120,16 +121,24 @@ preprocess <- function(
   statCache <- initializeCacheStat(
     objectsEffectsLink = objectsEffectsLink, effects = effects,
     groupsNetwork = NULL, windowParameters = windowParameters,
-    n1 = n1, n2 = n2, model = model, subModel = subModel, envir = prepEnvir
+    n1 = n1, n2 = n2,
+    model = model, subModel = subModel, envir = prepEnvir
   )
+
   # We put the initial stats to the previous format of 3 dimensional array
   initialStats <- array(
     unlist(lapply(statCache, "[[", "stat")),
-    dim = c(n1, n2, nEffects)
+    dim = c(n1, n2, nEffects),
+    dimnames = list(
+      sender = NULL,
+      receiver = NULL,
+      effect = namesEffects
+    )
   )
 
   statCache <- lapply(statCache, "[[", "cache")
 
+  gc()
   # UPDATED ALVARO: logical values indicating the type of information in events
   isIncrementEvent <- vapply(
     events,
@@ -141,43 +150,43 @@ preprocess <- function(
   # initialize return objects
 
   # calculate total of events
-  time <- unique(events[[1]]$time)
-  if (rightCensored) {
-    nRightCensoredEvents <- unique(unlist(lapply(events, function(x) x$time)))
-    nTotalEvents <- as.integer(sum(nRightCensoredEvents <= endTime))
-    nRightCensoredEvents <- setdiff(nRightCensoredEvents, time)
-    if (length(nRightCensoredEvents) > 1) {
-      nRightCensoredEvents <- as.integer(sum(
-        nRightCensoredEvents >= startTime &
-          nRightCensoredEvents <= endTime
-      ) - 1)
-    } else {
-      nRightCensoredEvents <- 0L
-    }
-  } else {
-    nRightCensoredEvents <- 0L
-    nTotalEvents <- as.integer(nrow(events[[1]]))
-  }
+  timeE <- unique(events[[1]]$time)
+  # if (rightCensored) {
+  #   nRightCensoredEvents <- unique(unlist(lapply(events, function(x) x$time)))
+  #   nTotalEvents <- as.integer(sum(nRightCensoredEvents <= endTime))
+  #   nRightCensoredEvents <- setdiff(nRightCensoredEvents, time)
+  #   if (length(nRightCensoredEvents) > 1) {
+  #     nRightCensoredEvents <- as.integer(sum(
+  #       nRightCensoredEvents >= startTime &
+  #         nRightCensoredEvents <= endTime
+  #     ) - 1)
+  #   } else {
+  #     nRightCensoredEvents <- 0L
+  #   }
+  # } else {
+  #   nRightCensoredEvents <- 0L
+  #   nTotalEvents <- as.integer(nrow(events[[1]]))
+  # }
 
   nDependentEvents <- ifelse(
     hasStartTime || hasEndTime,
-    as.integer(sum(time >= startTime & time <= endTime)),
-    as.integer(length(time))
+    as.integer(sum(timeE >= startTime & timeE <= endTime)),
+    as.integer(length(timeE))
   )
   # CHANGED ALVARO: preallocate objects sizes
-  dependentStatistics <- vector("list", nDependentEvents)
-  timeIntervals <- vector("numeric", ifelse(rightCensored, nDependentEvents, 0))
-  rightCensoredStatistics <- vector("list", nRightCensoredEvents)
-  timeIntervalsRightCensored <- vector("numeric", nRightCensoredEvents)
+  # dependentStatistics <- vector("list", nDependentEvents)
+  # timeIntervals <- vector("numeric", ifelse(rightCensored, nDependentEvents, 0))
+  # rightCensoredStatistics <- vector("list", nRightCensoredEvents)
+  # timeIntervalsRightCensored <- vector("numeric", nRightCensoredEvents)
   # CHANGED MARION: added a list that tracks the chronological(ordered by time)
   #                 order of events between dependent and right-censored events
   # 1 is for dependent and 2 if for right-censored
   # Also a list of the senders and receivers to allow
   # the preprocessingInit routine
-  orderEvents <- vector("integer", nDependentEvents + nRightCensoredEvents)
-  event_time <- vector("numeric", nDependentEvents + nRightCensoredEvents)
-  event_sender <- vector("integer", nDependentEvents + nRightCensoredEvents)
-  event_receiver <- vector("integer", nDependentEvents + nRightCensoredEvents)
+  # orderEvents <- vector("integer", nDependentEvents + nRightCensoredEvents)
+  # event_time <- vector("numeric", nDependentEvents + nRightCensoredEvents)
+  # event_sender <- vector("integer", nDependentEvents + nRightCensoredEvents)
+  # event_receiver <- vector("integer", nDependentEvents + nRightCensoredEvents)
   finalStep <- FALSE
 
   # # Remove duplicates of event lists!
@@ -202,11 +211,16 @@ preprocess <- function(
   # iRightCensored <- 0
   iDependentEvents <- 0L
   iTotalEvents <- 0L
+  rowNumberO <- seq_len(n1)
   if (progress) {
-    cat("Preprocessing events.\n", startTime, endTime, nTotalEvents)
+    cat("Preprocessing events.\n", startTime, endTime, nDependentEvents)
     # # how often print, max 50 prints
-    pb <- utils::txtProgressBar(max = nTotalEvents, char = "*", style = 3)
-    dotEvents <- ifelse(nTotalEvents > 50, ceiling(nTotalEvents / 50), 1)
+    pb <- utils::txtProgressBar(max = nDependentEvents, char = "*", style = 3)
+    dotEvents <- ifelse(
+      nDependentEvents > 50,
+      ceiling(nDependentEvents / 50),
+      1
+    )
   }
 
   # iterate over all event lists
@@ -243,12 +257,15 @@ preprocess <- function(
       eventPos <- 0
     }
 
+    # CHANGED MARION: added sender and receiver
+    event <- events[[nextEvent]][pointers[nextEvent], ]
+    
     # # CHANGED ALVARO: progress bar
     if (progress && iTotalEvents %% dotEvents == 0) {
       utils::setTxtProgressBar(pb, iTotalEvents)
     }
 
-    if (progress && iTotalEvents == nTotalEvents) {
+    if (progress && iTotalEvents == nDependentEvents) {
       utils::setTxtProgressBar(pb, iTotalEvents)
       close(pb)
     }
@@ -263,25 +280,73 @@ preprocess <- function(
     # 1. store statistic updates for DEPENDENT events
     if (isValidEvent && isDependent) {
       iDependentEvents <- 1L + iDependentEvents
-      dependentStatistics[[iDependentEvents]] <- updatesDependent
-      if (rightCensored) timeIntervals[[iDependentEvents]] <- interval
+      
+      if (model == "DyNAM" && subModel == "choice") {
+        statsSender <- initialStats[event$sender, , ]
+        
+        filterKeep <- (statsSender[, posS] - statsSender[, posL]) > 0 &
+          rowNumberO != event$sender
+        
+        choose <- (rowNumberO == event$receiver)[filterKeep]
+        
+        statsSender <- statsSender[filterKeep, ]
+        # if (takeSample) {
+          strataDist <- statsSender[ , posI] +
+            (1 - statsSender[ , posI]) * (statsSender[, posT] > 0) * 2
+          strataComm <- statsSender[, posC]
+          strataSmpl <- interaction(strataComm, strataDist, drop = TRUE)
+          rowNumber <- seq_len(nrow(statsSender))
+          
+          sampleKeep <- tapply(
+            rowNumber[!choose], 
+            strataSmpl[!choose],
+            sample, size = 1
+          ) |> c("event" = which(choose))
+          
+          sampleN <- tapply(
+            rowNumber[!choose], 
+            strataSmpl[!choose],
+            length
+          ) |> c("event" = 1)
+          
+          row = seq_along(sampleN)
+          timeK = rep(as_datetime(event$time, tz = "UTC"), length(row))
+          # eventC <- rep(iDependentEvents, length(row))
+          
+          keep <- data.frame(
+            statsSender[sampleKeep, ],
+            sampleN = sampleN,
+            choose = choose[sampleKeep] * 1L,
+            eventC = iDependentEvents
+          )
+          
+          A[timeK, row] <- keep
+          
+        # }
+        
+      } else if (model == "DyNAM" && subModel == "rate") {
+        statsSender <- apply(initialStats, 2, mean)
+      } else if (model == "REM") {
+        statsSender <- initialStats
+      } else stop("Model/subModel not implemented")
+      
+      # dependentStatistics[[iDependentEvents]] <- updatesDependent
+      # if (rightCensored) timeIntervals[[iDependentEvents]] <- interval
       # timeIntervals[[iDependentEvents]] # correct it for not rate models
       updatesDependent <- vector("list", nEffects)
       updatesIntervals <- vector("list", nEffects)
       # CHANGED MARION: added orderEvents
-      orderEvents[[eventPos]] <- 1L
+      # orderEvents[[eventPos]] <- 1L
       # CHANGED SIWEI: added time point of each event
       # (dependent & right-censored)
-      event_time[[eventPos]] <- time
-      # CHANGED MARION: added sender and receiver
-      event <- events[[nextEvent]][pointers[nextEvent], ]
-      if (isNodeEvent[nextEvent]) {
-        event_sender[[eventPos]] <- event$node
-        event_receiver[[eventPos]] <- event$node
-      } else {
-        event_sender[[eventPos]] <- event$sender
-        event_receiver[[eventPos]] <- event$receiver
-      }
+      # event_time[[eventPos]] <- time
+      # if (isNodeEvent[nextEvent]) {
+      #   event_sender[[eventPos]] <- event$node
+      #   event_receiver[[eventPos]] <- event$node
+      # } else {
+      #   event_sender[[eventPos]] <- event$sender
+      #   event_receiver[[eventPos]] <- event$receiver
+      # }
     } else if (!isDependent) {
       # 2. store statistic updates for RIGHT-CENSORED
       # (non-dependent, positive) intervals
@@ -290,13 +355,13 @@ preprocess <- function(
         # rightCensoredStatistics[[ pointers[nextEvent] ]] <- updatesIntervals
         # timeIntervalsRightCensored[[length(rightCensoredStatistics)]] <-
         # interval
-        rightCensoredStatistics[[pointerTempRightCensored]] <- updatesIntervals
-        timeIntervalsRightCensored[[pointerTempRightCensored]] <- interval
+        # rightCensoredStatistics[[pointerTempRightCensored]] <- updatesIntervals
+        # timeIntervalsRightCensored[[pointerTempRightCensored]] <- interval
         updatesIntervals <- vector("list", nEffects)
 
         # CHANGED MARION: added orderEvents
-        orderEvents[[eventPos]] <- 2L
-        event_time[[eventPos]] <- time
+        # orderEvents[[eventPos]] <- 2L
+        # event_time[[eventPos]] <- time
         # CHANGED MARION: added sender and receiver
         # CHANGED WEIGUTIAN: removed "increment" which results a bug
         # Check (WEIGUTIAN): check whether the following block is necessary for
@@ -313,7 +378,7 @@ preprocess <- function(
           event_sender[[eventPos]] <- event$sender
           event_receiver[[eventPos]] <- event$receiver
         }
-        pointerTempRightCensored <- pointerTempRightCensored + 1
+        # pointerTempRightCensored <- pointerTempRightCensored + 1
       } # else if (isValidEvent && !finalStep && interval > 0) {
       #   timeIntervals[[iDependentEvents + 1]] <- interval +
       #     timeIntervals[[iDependentEvents + 1]]
@@ -467,10 +532,10 @@ preprocess <- function(
           }
 
           if (!is.null(updates)) {
-            if (hasStartTime && nextEventTime < startTime) {
+            # if (hasStartTime && nextEventTime < startTime) {
               initialStats[cbind(updates[, "node1"], updates[, "node2"], id)] <-
                 updates[, "replace"]
-            } else {
+            # } else {
               # CHANGED WEIGUTIAN: UPDATE THE STAT MAT
               # AND IMPUTE THE MISSING VALUES
               # if (anyNA(statCache[[id]][["stat"]])) {
@@ -483,15 +548,15 @@ preprocess <- function(
               #   statCache[[id]][["stat"]][position_NA] <- average
               # }
 
-              updatesDependent[[id]] <- ReduceUpdateNonDuplicates(
-                updatesDependent[[id]],
-                updates
-              )
-              updatesIntervals[[id]] <- ReduceUpdateNonDuplicates(
-                updatesIntervals[[id]],
-                updates
-              )
-            }
+              # updatesDependent[[id]] <- ReduceUpdateNonDuplicates(
+              #   updatesDependent[[id]],
+              #   updates
+              # )
+              # updatesIntervals[[id]] <- ReduceUpdateNonDuplicates(
+              #   updatesIntervals[[id]],
+              #   updates
+              # )
+            # }
           }
         }
       }
@@ -520,22 +585,22 @@ preprocess <- function(
       times <= endTime
   }
 
-  if (progress && utils::getTxtProgressBar(pb) < nTotalEvents) {
+  if (progress && utils::getTxtProgressBar(pb) < nDependentEvents) {
     close(pb)
   }
 
   return(structure(
     list(
       initialStats = initialStats,
-      dependentStatsChange = dependentStatistics,
-      rightCensoredStatsChange = rightCensoredStatistics,
-      intervals = timeIntervals,
+      # dependentStatsChange = dependentStatistics,
+      # rightCensoredStatsChange = rightCensoredStatistics,
+      # intervals = timeIntervals,
       # CHANGED MARION
-      rightCensoredIntervals = timeIntervalsRightCensored,
-      orderEvents = orderEvents,
-      eventTime = event_time,
-      eventSender = event_sender,
-      eventReceiver = event_receiver,
+      # rightCensoredIntervals = timeIntervalsRightCensored,
+      # orderEvents = orderEvents,
+      # eventTime = event_time,
+      # eventSender = event_sender,
+      # eventReceiver = event_receiver,
       startTime = startTime,
       endTime = endTime
     ),
@@ -573,11 +638,12 @@ initializeCacheStat <- function(
   objCat <- assignCatToObject(.objects)
   if (attr(objCat, "noneClass")) {
     stop(
-      "An object is not assigned either as network or attibute",
-      paste(rownames(objectsEffectsLink)[attr(objCat, "manyClasses") != 1],
+      "An object is not assigned either as network or attibute\n\t",
+      paste(
+        dQuote(rownames(objectsEffectsLink)[attr(objCat, "manyClasses") != 1]),
         collapse = ", "
       ),
-      "check the class of the object.",
+      "\ncheck the class of the object.",
       call. = FALSE
     )
   }
