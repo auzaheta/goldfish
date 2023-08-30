@@ -2,7 +2,6 @@
 // Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #include <RcppArmadillo.h>
-#include <RcppEigen.h>
 #include <Rcpp.h>
 
 using namespace Rcpp;
@@ -329,32 +328,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// MapMatMult
-SEXP MapMatMult(const Eigen::Map<Eigen::MatrixXd> A, const Eigen::Map<Eigen::MatrixXd> B, int nCores);
-RcppExport SEXP _goldfish_MapMatMult(SEXP ASEXP, SEXP BSEXP, SEXP nCoresSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type A(ASEXP);
-    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXd> >::type B(BSEXP);
-    Rcpp::traits::input_parameter< int >::type nCores(nCoresSEXP);
-    rcpp_result_gen = Rcpp::wrap(MapMatMult(A, B, nCores));
-    return rcpp_result_gen;
-END_RCPP
-}
-// MapMatMultI
-SEXP MapMatMultI(const Eigen::Map<Eigen::MatrixXi> A, const Eigen::Map<Eigen::MatrixXi> B, int nCores);
-RcppExport SEXP _goldfish_MapMatMultI(SEXP ASEXP, SEXP BSEXP, SEXP nCoresSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXi> >::type A(ASEXP);
-    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::MatrixXi> >::type B(BSEXP);
-    Rcpp::traits::input_parameter< int >::type nCores(nCoresSEXP);
-    rcpp_result_gen = Rcpp::wrap(MapMatMultI(A, B, nCores));
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_goldfish_estimate_DyNAM_MM", (DL_FUNC) &_goldfish_estimate_DyNAM_MM, 15},
@@ -372,8 +345,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_goldfish_gather_receiver_model", (DL_FUNC) &_goldfish_gather_receiver_model, 12},
     {"_goldfish_gather_sender_model", (DL_FUNC) &_goldfish_gather_sender_model, 18},
     {"_goldfish_gather_sender_receiver_model", (DL_FUNC) &_goldfish_gather_sender_receiver_model, 18},
-    {"_goldfish_MapMatMult", (DL_FUNC) &_goldfish_MapMatMult, 3},
-    {"_goldfish_MapMatMultI", (DL_FUNC) &_goldfish_MapMatMultI, 3},
     {NULL, NULL, 0}
 };
 
