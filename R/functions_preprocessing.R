@@ -120,13 +120,21 @@ preprocess <- function(
 
   if (progress) cat("Initializing cache objects and statistical matrices.\n")
 
-  statCache <- initializeCacheStat(
-    objectsEffectsLink = objectsEffectsLink, effects = effects,
-    groupsNetwork = NULL, windowParameters = windowParameters,
-    n1 = n1, n2 = n2,
-    model = model, subModel = subModel, envir = prepEnvir
-  )
-
+  nameCache <- stringr::str_replace(dbFile, stringr::fixed("sqlite"), "Rdata")
+  
+  if (!file.exists(nameCache)) {
+    statCache <- initializeCacheStat(
+      objectsEffectsLink = objectsEffectsLink, effects = effects,
+      groupsNetwork = NULL, windowParameters = windowParameters,
+      n1 = n1, n2 = n2,
+      model = model, subModel = subModel, envir = prepEnvir
+    )
+    saveRDS(statCache, file = nameCache)
+  } else {
+    statCache <- readRDS(file = nameCache)
+  }
+  
+  cat("End init matrix: ", format(Sys.time()), "\n")
   # We put the initial stats to the previous format of 3 dimensional array
   initialStats <- array(
     unlist(lapply(statCache, "[[", "stat")),
@@ -233,11 +241,11 @@ preprocess <- function(
 
   if (progress) {
     cat("Preprocessing events.\n", startTime, endTime, nTotalEvents)
-    # # how often print, max 50 prints
+    # # how often print, print each 1%
     pb <- utils::txtProgressBar(max = nTotalEvents, char = "*", style = 3)
     dotEvents <- ifelse(
-      nTotalEvents > 50,
-      ceiling(nTotalEvents / 50),
+      round(log10(nTotalEvents)) <= 2,
+      ceiling(nTotalEvents * .01),
       1
     )
   }
