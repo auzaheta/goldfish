@@ -308,7 +308,7 @@ preprocess <- function(
     if (isValidEvent && isDependent) {
       iDependentEvents <- 1L + iDependentEvents
       
-      if (model == "DyNAM" && subModel == "choice") {
+      if (model %in% c("DyNAM", "REM") && subModel == "choice") {
         statsSender <- initialStats[event$sender, , ]
         
         filterKeep <- (statsSender[, posS] - statsSender[, posL]) > 0 &
