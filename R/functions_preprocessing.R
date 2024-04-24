@@ -136,17 +136,16 @@ preprocess <- function(
   
   cat("End init matrix: ", format(Sys.time()), "\n")
   # We put the initial stats to the previous format of 3 dimensional array
-  initialStats <- array(
-    unlist(lapply(statCache, "[[", "stat")),
-    dim = c(n1, n2, nEffects),
-    dimnames = list(
-      sender = NULL,
-      receiver = NULL,
-      effect = namesEffects
-    )
+  initialStats <- statCache[["initialStats"]]
+  dimnames(initialStats) <- list(
+    NULL,
+    NULL,
+    namesEffects
   )
 
-  statCache <- lapply(statCache, "[[", "cache")
+  statCache <- statCache[["cache"]]
+
+  cat("End re-arrange init stat: ", format(Sys.time()), "\n")
 
   gc()
   # UPDATED ALVARO: logical values indicating the type of information in events
@@ -232,6 +231,7 @@ preprocess <- function(
   
   # create conn to db
   db <- DBI::dbConnect(RSQLite::SQLite(), ifelse(is.null(dbFile), "", dbFile))
+  on.exit(DBI::dbDisconnect(db))
 
   posI <- positions["posI"]
   posT <- positions["posT"]
@@ -323,11 +323,13 @@ preprocess <- function(
           strataComm <- statsSender[, posC]
           strataSmpl <- interaction(strataComm, strataDist, drop = TRUE)
           rowNumber <- seq_len(nrow(statsSender))
-          
+          # browser(
+          #   expr = {any(table(strataSmpl[!choose, drop = TRUE]) == 1)}
+          # )
           sampleKeep <- tapply(
             rowNumber[!choose], 
             strataSmpl[!choose, drop = TRUE],
-            sample, size = 1
+            \(x) {x[sample.int(length(x), size = 1)]}
           ) |> c("event" = which(choose))
           
           sampleN <- tapply(
@@ -345,7 +347,8 @@ preprocess <- function(
             statsSender[sampleKeep, ],
             sampleN = sampleN,
             choose = choose[sampleKeep] * 1L,
-            eventC = iDependentEvents
+            eventC = iDependentEvents,
+            receiver = rowNumberO[filterKeep][sampleKeep]
           )
           
           if (iDependentEvents == 1) {
@@ -682,43 +685,47 @@ initializeCacheStat <- function(
     )
   }
 
-  # objects: list of 6, each element is a 84*84 matrix
-  objectsRet <- lapply(
-    seq_along(effects),
-    function(iEff) {
-      o <- objectsEffectsLink[, iEff]
-      attIDs <- which(!is.na(o) & objCat == "attribute")
-      netIDs <- which(!is.na(o) & objCat == "network")
-      attributes <- .objects[attIDs[order(o[attIDs])]]
-      networks <- .objects[netIDs[order(o[netIDs])]]
-      labelEffect <- colnames(objectsEffectsLink)[iEff]
-      objectsNames <- paste(
-        rownames(na.omit(objectsEffectsLink[, iEff, drop = FALSE])),
-        collapse = ", "
-      )
-      messageEffect <- paste0(
-        " cannot initialized with objects ", objectsNames, "\n"
-      )
-      # init
-      .argsFUN <- list(
-        effectFun = effects[[iEff]][["effect"]],
-        network = if (length(networks) == 1) networks[[1]] else networks,
-        attribute = if (length(attributes) == 1) {
-          attributes[[1]]
-        } else {
-          attributes
-        },
-        groupsNetwork = groupsNetwork,
-        window = windowParameters[[iEff]],
-        n1 = n1,
-        n2 = n2
-      )
-      callFUN(
-        effects, iEff, "initEffect", .argsFUN, messageEffect,
-        labelEffect
-      )
-    }
+  res <- list(
+    initialStats = array(0, dim = c(n1, n2, length(effects))),
+    cache = vector("list", length(effects))
   )
+  for (iEff in seq_along(effects)) {
+    o <- objectsEffectsLink[, iEff]
+    attIDs <- which(!is.na(o) & objCat == "attribute")
+    netIDs <- which(!is.na(o) & objCat == "network")
+    attributes <- .objects[attIDs[order(o[attIDs])]]
+    networks <- .objects[netIDs[order(o[netIDs])]]
+    labelEffect <- colnames(objectsEffectsLink)[iEff]
+    objectsNames <- paste(
+      rownames(na.omit(objectsEffectsLink[, iEff, drop = FALSE])),
+      collapse = ", "
+    )
+    messageEffect <- paste0(
+      " cannot initialized with objects ", objectsNames, "\n"
+    )
+    # init
+    .argsFUN <- list(
+      effectFun = effects[[iEff]][["effect"]],
+      network = if (length(networks) == 1) networks[[1]] else networks,
+      attribute = if (length(attributes) == 1) {
+        attributes[[1]]
+      } else {
+        attributes
+      },
+      groupsNetwork = groupsNetwork,
+      window = windowParameters[[iEff]],
+      n1 = n1,
+      n2 = n2
+    )
+    initObject <- callFUN(
+      effects, iEff, "initEffect", .argsFUN, messageEffect,
+      labelEffect
+    )
+    res[["cache"]][[iEff]] <- initObject[["cache"]]
+    res[["initialStats"]][,, iEff] <- initObject[["stat"]]
+  }
+  
+  return(res)
 }
 
 
