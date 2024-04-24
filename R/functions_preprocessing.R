@@ -143,7 +143,7 @@ preprocess <- function(
     namesEffects
   )
 
-  statCache <- statCache[["cache"]]
+  statCache <- lapply(statCache[["cache"]], "[[", 1)
 
   cat("End re-arrange init stat: ", format(Sys.time()), "\n")
 
@@ -482,6 +482,18 @@ preprocess <- function(
 
       ## 3a. calculate statistics changes
       if (!finalStep) {
+        # chequear <- which(!is.na(eventsEffectsLink[nextEvent, ]))
+        # browser(expr = {all(chequear %in% c(15, 16, 26))})
+        # tablePrint <- data.frame(
+        #   effect = names(chequear),
+        #   cache = chequear,
+        #   exists = sapply(statCache[chequear], is.null),
+        #   type = sapply(statCache[chequear], typeof)
+        # )
+        # cat("\neventC:", iDependentEvents,
+        #     "\t cache length:", length(statCache), "\n"
+        #   )
+        # print(tablePrint)
         for (id in which(!is.na(eventsEffectsLink[nextEvent, ]))) {
           # create the ordered list for the objects
           objectsToPass <- objectsEffectsLink[, id][
@@ -721,7 +733,8 @@ initializeCacheStat <- function(
       effects, iEff, "initEffect", .argsFUN, messageEffect,
       labelEffect
     )
-    res[["cache"]][[iEff]] <- initObject[["cache"]]
+    # browser(expr = {iEff == 26})
+    res[["cache"]][[iEff]] <- list(initObject[["cache"]])
     res[["initialStats"]][,, iEff] <- initObject[["stat"]]
   }
   
